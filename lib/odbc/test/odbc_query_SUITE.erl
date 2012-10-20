@@ -49,6 +49,7 @@ all() ->
 	     not_connection_owner, no_result_set, query_error,
 	     {group, multiple_result_sets},
 	     {group, parameterized_queries}, {group, describe_table},
+         auto_commit,
 	     delete_nonexisting_row];
 	Other -> {skip, Other}
     end.
@@ -1456,6 +1457,34 @@ describe_no_such_table(Config) when is_list(Config) ->
 
     {error, _ } = odbc:describe_table(Ref, Table),
     ok.
+
+%%-------------------------------------------------------------------------
+
+auto_commit(doc) ->
+    ["Test auto_commit/2 after connection is established."];
+auto_commit(suite) ->
+    [];
+auto_commit(Config) when is_list(Config) ->    
+    Ref = ?config(connection_ref, Config),
+    Table = ?config(tableName, Config),
+
+    ok = odbc:auto_commit(Ref, false),
+
+    {updated, _} =
+	odbc:sql_query(Ref, 
+		       "CREATE TABLE " ++ Table ++ 
+		       " (ID integer, DATA varchar(10))"),
+
+    {updated, Count} = 
+	odbc:sql_query(Ref, "INSERT INTO " ++ Table ++ " VALUES(1,'bar')"),
+    true = odbc_test_lib:check_row_count(0, Count),
+
+    ok = odbc:commit(Ref, commit),
+    true = odbc_test_lib:check_row_count(1, Count),
+
+    ok = odbc:auto_commit(Ref, true),
+	odbc:sql_query(Ref, "INSERT INTO " ++ Table ++ " VALUES(2,'foo')"),
+    true = odbc_test_lib:check_row_count(2, Count).
 
 %%-------------------------------------------------------------------------
 %% Internal functions
