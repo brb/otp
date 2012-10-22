@@ -1465,26 +1465,33 @@ auto_commit(doc) ->
 auto_commit(suite) ->
     [];
 auto_commit(Config) when is_list(Config) ->    
-    Ref = ?config(connection_ref, Config),
+    Ref1 = ?config(connection_ref, Config),
+    {ok, Ref2} =  odbc:connect(?RDBMS:connection_string(), 
+	    [{auto_commit, off}] ++ odbc_test_lib:platform_options()),
+
     Table = ?config(tableName, Config),
 
-    ok = odbc:auto_commit(Ref, false),
-
     {updated, _} =
-	odbc:sql_query(Ref, 
+	    odbc:sql_query(Ref1, 
 		       "CREATE TABLE " ++ Table ++ 
 		       " (ID integer, DATA varchar(10))"),
 
-    {updated, Count} = 
-	odbc:sql_query(Ref, "INSERT INTO " ++ Table ++ " VALUES(1,'bar')"),
-    true = odbc_test_lib:check_row_count(0, Count),
+    ok = odbc:auto_commit(Ref1, off),
 
-    ok = odbc:commit(Ref, commit),
-    true = odbc_test_lib:check_row_count(1, Count),
+    {updated, 1} = 
+	    odbc:sql_query(Ref1, "INSERT INTO " ++ Table ++ " VALUES(1,'bar')"),
+    {ok, 0} = odbc:select_count(Ref2, "SELECT * FROM " ++ Table),
 
-    ok = odbc:auto_commit(Ref, true),
-	odbc:sql_query(Ref, "INSERT INTO " ++ Table ++ " VALUES(2,'foo')"),
-    true = odbc_test_lib:check_row_count(2, Count).
+    ok = odbc:commit(Ref1, commit),
+    {ok, 1} = odbc:select_count(Ref2, "SELECT * FROM " ++ Table),
+
+    ok = odbc:auto_commit(Ref1, on),
+
+	odbc:sql_query(Ref1, "INSERT INTO " ++ Table ++ " VALUES(2,'foo')"),
+    {ok, 2} = odbc:select_count(Ref2, "SELECT * FROM " ++ Table),
+
+    ok = odbc:disconnect(Ref1),
+    ok = odbc:disconnect(Ref2).
 
 %%-------------------------------------------------------------------------
 %% Internal functions
